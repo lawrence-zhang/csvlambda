@@ -3,6 +3,7 @@ const Position = require('./position.js');
 const SNSMessage = require('./snsmessage.js');
 const s3 = new AWS.S3();
 
+
 /**
  * A Lambda function that logs the payload received from S3.
  */
@@ -26,14 +27,16 @@ exports.handler = async (event, context, callback) => {
     Bucket: srcBucket,
     Key: srcKey
   };
-  const pp1 = new Position(1, 1, 'test');
-  console.log(pp1);
-  const ccc = new SNSMessage(1, 1, 1, 1);
-  SNSMessage.publishMessage(ccc);
-
+  
+  //const ccc = new SNSMessage(1, 1, 1, 1);
+ // SNSMessage.publishMessage(ccc);
+  
   const stream = s3.getObject(params).createReadStream();
-  csv.parseStream(stream).on('error', error => console.error(error))
-    .on('data', row => console.log(row))
+  csv.parseStream(stream, { headers: true }).on('error', error => console.error(error))
+    .on('data', (row) => {
+      const position = new Position(row.latitude, row.longitude, row.address);
+      Position.saveToDynamoDb(position);  
+    })
     .on('end', rowCount => console.log(`Parsed ${rowCount} rows`));
   
 };
