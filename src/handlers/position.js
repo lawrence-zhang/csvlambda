@@ -7,6 +7,7 @@ class Position {
       }
 
       if (longitude === '' || isNaN(longitude) || longitude === null) {
+        console.log("longitude validation error");
         throw new Error('validation error, longitude can not be empty string or none number type')
       }
 
