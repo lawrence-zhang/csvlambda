@@ -1,0 +1,8 @@
+{
+    "name": "testevent",
+    "lambdaPath": "../src/handlers/s3-event.js",
+    "exportName": "handler",
+    "template": "../template.yaml",
+    "variablesRootKey": "testProject",
+    "variablesPath": "env.json"
+}

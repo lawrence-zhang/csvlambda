@@ -1,0 +1,19 @@
+{
+  "name": "replaced-by-user-input",
+  "description": "replaced-by-user-input",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "aws-sdk": "^2.748.0",
+    "csv-parser": "^2.3.3",
+    "fast-csv": "^4.3.2",
+    "iconv": "^3.0.0"
+  },
+  "devDependencies": {
+    "aws-sdk-mock": "^4.5.0",
+    "jest": "^24.7.1"
+  },
+  "scripts": {
+    "test": "jest"
+  }
+}
