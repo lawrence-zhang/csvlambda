@@ -12,7 +12,8 @@
   },
   "devDependencies": {
     "aws-sdk-mock": "^4.5.0",
-    "jest": "^24.7.1"
+    "jest": "^24.7.1",
+    "node-uuid": "^1.4.8"
   },
   "scripts": {
     "test": "jest"

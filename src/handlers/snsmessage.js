@@ -1,3 +1,4 @@
+const snsObj = require('aws-sdk').SNS();
 class SNSMessage {
     static messageTopic() {
         return process.env.CSV_ERROR_TOPIC;
@@ -10,21 +11,18 @@ class SNSMessage {
     }
 
     static publishMessage(snsmsg) {
-        var AWS = require('aws-sdk');
-        
         var params = {
             Message: JSON.stringify(snsmsg),
             TopicArn: SNSMessage.messageTopic()
         };
 
         // Create promise and SNS service object
-        var publishTextPromise = new AWS.SNS({apiVersion: '2010-03-31'}).publish(params).promise();
+        var publishTextPromise = snsObj.publish(params).promise();
 
         // Handle promise's fulfilled/rejected states
         publishTextPromise.then(
         function(data) {
-            console.log(`Message ${params.Message} send sent to the topic ${params.TopicArn}`);
-            console.log("MessageID is " + data.MessageId);
+            //console.log(`Message ${params.Message} send sent to the topic ${params.TopicArn}`);
         }).catch(
             function(err) {
             console.error(err, err.stack);

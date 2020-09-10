@@ -8,12 +8,15 @@ const s3 = new AWS.S3();
  * A Lambda function that logs the payload received from S3.
  */
 exports.handler = async (event, context, callback) => {
-  
-  const csv = require('fast-csv');
+  parseStream(event);  
+};
+
+exports.parseStream = (event) => {
   const srcBucket = event.Records[0].s3.bucket.name;
   const srcKey    = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, " "));
   const typeMatch = srcKey.match(/\.([^.]*)$/);
-  
+  const csv = require('fast-csv');
+
   if (!typeMatch) {
       console.error("Could not determine the csv type.");
       const errorSNS = new SNSMessage(srcBucket, srcKey, "", "Could not determine the csv type.");
@@ -31,7 +34,6 @@ exports.handler = async (event, context, callback) => {
     Bucket: srcBucket,
     Key: srcKey
   };
-  
   const stream = s3.getObject(params).createReadStream();
   
   csv.parseStream(stream.on('error', s3error => {
@@ -44,6 +46,7 @@ exports.handler = async (event, context, callback) => {
     if (typeof error.rawData !== 'undefined') {
       rawData = error.rawData;
     }
+    console.log(error);
     const errorSNS = new SNSMessage(srcBucket, srcKey, rawData, error.message);
     SNSMessage.publishMessage(errorSNS);
     console.error(error);   
@@ -74,5 +77,4 @@ exports.handler = async (event, context, callback) => {
       }
     }
   });
-};
-
+}

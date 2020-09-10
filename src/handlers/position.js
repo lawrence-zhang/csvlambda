@@ -1,3 +1,5 @@
+const uuid = require('node-uuid');
+const dbb = require('aws-sdk').DynamoDB();
 class Position {
     constructor(latitude, longitude, address) {
       if (latitude === '' || isNaN(latitude) || latitude === null) {
@@ -18,9 +20,6 @@ class Position {
     }
 
     static saveToDynamoDb(position) {
-      const AWS = require('aws-sdk');
-      const ddb = new AWS.DynamoDB({apiVersion: '2012-08-10'});
-      const uuid = require('node-uuid');
       var params = {
         TableName: process.env.DYNAMODB_TABLE,
         Item: {
@@ -28,11 +27,9 @@ class Position {
           'position_data' : {S: JSON.stringify(position)}
         }
       };
-    ddb.putItem(params, function(err, data) {
+    dbb.putItem(params, function(err, data) {
         if (err) {
           console.log("Error", err);
-        } else {
-          console.log("Success", data);
         }
       });    
     }
