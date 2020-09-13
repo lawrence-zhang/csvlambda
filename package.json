@@ -5,7 +5,7 @@
   "private": true,
   "dependencies": {
     "aws-sdk": "^2.748.0",
-    "csv-parser": "^2.3.3",
+    "bluebird": "^3.7.2",
     "fast-csv": "^4.3.2",
     "iconv": "^3.0.0",
     "node-uuid": "^1.4.8"

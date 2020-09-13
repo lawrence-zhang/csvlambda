@@ -1,0 +1,12 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "csvuploadprj"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-10yogma91int1"
+s3_prefix = "csvuploadprj"
+region = "eu-west-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "AppBucketName=\"lawrence-csv-upload-bucket-2020\" TopicURI=\"error-message-topic\" DynamoDbTableName=\"position_table\""
+

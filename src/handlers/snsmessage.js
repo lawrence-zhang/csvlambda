@@ -1,4 +1,5 @@
-const snsObj = require('aws-sdk').SNS();
+const AWS = require('aws-sdk');
+const snsObj = new AWS.SNS();
 class SNSMessage {
     static messageTopic() {
         return process.env.CSV_ERROR_TOPIC;
@@ -10,24 +11,13 @@ class SNSMessage {
         this.errorMsg = errorMsg;
     }
 
-    static publishMessage(snsmsg) {
+    static async publishMessage(snsmsg, callback) {
         var params = {
             Message: JSON.stringify(snsmsg),
             TopicArn: SNSMessage.messageTopic()
         };
-
-        // Create promise and SNS service object
-        var publishTextPromise = snsObj.publish(params).promise();
-
-        // Handle promise's fulfilled/rejected states
-        publishTextPromise.then(
-        function(data) {
-            //console.log(`Message ${params.Message} send sent to the topic ${params.TopicArn}`);
-        }).catch(
-            function(err) {
-            console.error(err, err.stack);
-        });
-
+        
+        return await snsObj.publish(params).promise();
     }
 };
 

@@ -2,92 +2,117 @@ const AWS = require('aws-sdk');
 const Position = require('./position.js');
 const SNSMessage = require('./snsmessage.js');
 const s3 = new AWS.S3();
+const csv = require('fast-csv');
 
 
 exports.handler = async (event, context, callback) => {
-  parseStream(event);  
+  console.info(event);
+  console.info("start handle");
+  return readCSVFileByEvent(event, context, callback).then((data) => {
+    console.info("finished handle");
+  }).catch(err => {
+    console.error(err);
+  });
 };
 
-exports.parseStream = (event, callback) => {
-  const srcBucket = event.Records[0].s3.bucket.name;
-  const srcKey    = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, " "));
-  const typeMatch = srcKey.match(/\.([^.]*)$/);
-  const csv = require('fast-csv');
-
-  if (!typeMatch) {
-      console.error("Could not determine the csv type.");
-      const errorSNS = new SNSMessage(srcBucket, srcKey, "", "Could not determine the csv type.");
-      SNSMessage.publishMessage(errorSNS);
-      return;
-  }
-  const csvType = typeMatch[1].toLowerCase();
-  if (csvType != "csv") {
-      console.error(`Unsupported csv type: ${csvType}`);
-      
-      const errorSNS = new SNSMessage(srcBucket, srcKey, "", "Unsupported csv type");
-      SNSMessage.publishMessage(errorSNS);
-      if (callback) {
-        const err = new Error(`Unsupported csv type: ${csvType}`);
-        callback(err, null);
-      }
-      return;
-  }  
-  const params = {
-    Bucket: srcBucket,
-    Key: srcKey
-  };
-  const stream = s3.getObject(params).createReadStream();
-  
-  csv.parseStream(stream.on('error', s3error => {
-    const errorSNS = new SNSMessage(srcBucket, srcKey, "", s3error);
-    SNSMessage.publishMessage(errorSNS);
-    console.error(s3error);
-    if (callback) {
-      s3error.code = 1001
-      callback(s3error, null);
-    }
-  }), { headers: true })
-  .on('error', error => {
-    var rawData = '';
-    if (typeof error.rawData !== 'undefined') {
-      rawData = error.rawData;
-    }
-    console.error(error);
-    const errorSNS = new SNSMessage(srcBucket, srcKey, rawData, error.message);
-    SNSMessage.publishMessage(errorSNS);
-    console.error(error);   
-    if (callback) {
-      error.code = 1000;
-      callback(error, null);
+function errorLog(error, s3FileInfo, rawData, reject) {
+  console.error(error);
+  const errorSNS = new SNSMessage(s3FileInfo.Bucket, s3FileInfo.Key, rawData === null ? "": rawData, error.message);
+  SNSMessage.publishMessage(errorSNS).catch(err=> {
+    console.error(err);
+    if (reject){
+      reject(err);
     }
   })
-  .on('data', (row) => {
-    try {
-      if (typeof row.latitude === 'undefined' || typeof row.longitude === 'undefined' || typeof row.address === 'undefined') {
+}
+
+function readCSVFileByEvent(event, context, callback) {
+  return new Promise(function(resolve, reject) {
+    var allRowCount = 0;
+    var executedRowNumber = 0;
+    const srcBucket = event.Records[0].s3.bucket.name;
+    const srcKey    = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, " "));
+    const typeMatch = srcKey.match(/\.([^.]*)$/);
+    
+    console.info('start handle s3 file, bucket:' + srcBucket + ', file name:' + srcKey);
+    const params = {
+      Bucket: srcBucket,
+      Key: srcKey
+    };
+    if (!typeMatch) {
+      const typeMatchError = new Error('Could not determine the csv type.');
+      errorLog(typeMatchError, params, null, reject);
+      return;
+    }
+    const csvType = typeMatch[1].toLowerCase();
+    if (csvType != "csv") {
+      const unsupportedTypeError = new Error('Unsupported csv type: ${csvType}');
+      errorLog(unsupportedTypeError, params, reject);
+      return;
+    }  
+    
+    const readStream = s3.getObject(params).createReadStream();
+    var options = { 'headers': true };
+    csv
+    .parseStream(readStream.on('error', accessError=>{
+      errorLog(accessError, params, null, reject);
+    }), options)
+    .on('data', function(record) {
+      console.info('each row data');
+      console.info(record);
+      
+      if (typeof record.latitude === 'undefined' || typeof record.longitude === 'undefined' || typeof record.address === 'undefined') {
         const formatError = new Error("heads are not matched by standard");
-        formatError.rawData = row;
-        formatError.stopFlag = true;
-        throw formatError;
+        errorLog(formatError, params, record, reject);
+        return;
       }
-      const position = new Position(row.latitude, row.longitude, row.address);
-      Position.saveToDynamoDb(position);  
-    }
-    catch(e) {
-      if (typeof e.rawData === 'undefined') {
-        e.rawData = row;
+
+      if (record.latitude === '' || isNaN(record.latitude) || record.latitude === null) {
+        errorLog(new Error('validation error, latitude can not be empty string or none number type'), params, record, null);
+        return;
       }
-      if (e.stopFlag) {
-        throw e;
-      } 
-      else {
-        const errorSNS = new SNSMessage(srcBucket, srcKey, row, e.message);
-        SNSMessage.publishMessage(errorSNS);
-        console.error(e);
+
+      if (record.longitude === '' || isNaN(record.longitude) || record.longitude === null) {
+        errorLog(new Error('validation error, longitude can not be empty string or none number type'), params, record, null);
+        return;
       }
-    }
-  }).on('end', rowCount=>{
-    if (callback) {
-      callback(null, 'finished');
-    }
-  });
+
+      if (record.address === '' || record.address === null) {
+        errorLog(new Error('validation error, address can not be empty string or null'), params, record, null);
+        return;
+      }
+
+      const position = new Position(record.latitude, record.longitude, record.address);
+      Position.saveToDynamoDb(position, (err, data) => {
+          if (err) {
+            console.error(err);
+            resolve(allRowCount);
+            if (executedRowNumber === allRowCount) {
+              resolve(allRowCount);
+            }
+          }
+          else
+          {
+            console.info('data saved' + JSON.stringify(position));
+            executedRowNumber++;
+            if (executedRowNumber === allRowCount) {
+              resolve(allRowCount);
+            }
+          }
+          
+      });
+    })
+    .on('headers', headers => {
+      if (headers.length !== 3 && headers[0].toLowerCase() !== 'latitude' && headers[1].toLowerCase() !== 'longitude' && headers[2] !== 'address') {
+        const headerError = new Error('Header format is not correct');
+        errorLog(headerError, params, reject);
+      }
+    })
+    .on('error', rowError => {
+      errorLog(rowError, params, null, null);
+    })
+    .on('end', function(rowCount) {
+      allRowCount = rowCount;
+    });
+  })
 }

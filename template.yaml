@@ -9,33 +9,75 @@ Parameters:
     Description: "REQUIRED: Unique S3 bucket name to use for the app."
   TopicURI: 
     Type: String
-    Description: "fdaffds"
+    Description: "Topic name of SNS"
+  DynamoDbTableName:
+    Type: String
+    Description: "table name of dynamoDb for save csv data"
 Resources:
   testProject:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/s3-event.handler
-      Runtime: nodejs12.x
+      Runtime: nodejs12.x 
       Environment:
         Variables:
-          CSV_ERROR_TOPIC: !Ref TopicURI
+          CSV_ERROR_TOPIC: !Ref SNSTopic
+          DYNAMODB_TABLE: !Ref DynamoDbTableName
       MemorySize: 128
       Timeout: 60
       Policies:
-        S3ReadPolicy:
-          BucketName: !Ref AppBucketName
-      Events:
-        S3NewObjectEvent:
-          Type: S3
-          Properties:
-            Bucket: !Ref AppBucket
-            Events: s3:ObjectCreated:*
+        - AWSLambdaExecute
+        - Statement:
+          - Sid: DynamoDbPutItemPolicy
+            Effect: Allow
+            Resource: !GetAtt DynamoDbTable.Arn
+            Action: 
+              - dynamodb:PutItem
+          - Sid: SNSPublishPolicy
+            Effect: Allow
+            Resource: !Ref SNSTopic
+            Action: 
+              - sns:Publish
+  CSVBucket: 
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref AppBucketName
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:Put
             Filter:
               S3Key:
                 Rules:
                   - Name: suffix
-                    Value: ".json"
-  AppBucket:
-    Type: AWS::S3::Bucket
+                    Value: csv
+            Function: !GetAtt [testProject, Arn]
+  LambdaFromS3InvokePermission:
+    Type: AWS::Lambda::Permission
     Properties:
-      BucketName: !Ref AppBucketName
+      FunctionName:
+        Fn::GetAtt:
+          - testProject
+          - Arn
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:s3:::${AppBucketName}
+  DynamoDbTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        -
+          AttributeName: "position_guid"
+          AttributeType: "S"
+      KeySchema:
+        -
+          AttributeName: "position_guid"
+          KeyType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      TableName: !Ref DynamoDbTableName
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      TopicName: !Ref TopicURI
