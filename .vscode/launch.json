@@ -30,7 +30,7 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Jest single run all tests",
+            "name": "Unit Test For csv parsing for AWS",
             "program": "${workspaceRoot}/node_modules/jest/bin/jest.js",
             "args": ["--verbose", "-i", "--no-cache", "--watchAll"],
             "env": {"DYNAMODB_TABLE": "test-tablename"},
