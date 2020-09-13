@@ -6,7 +6,8 @@ const csv = require('fast-csv');
 
 
 
-exports.httpHandle = async (event, context, callback) => {
+exports.httpHandle = (event, context, callback) => {
+  
   this.handleRequest(event, context, callback).then(data => {
     var response = {
       "statusCode" : 200,
@@ -45,14 +46,20 @@ exports.httpHandle = async (event, context, callback) => {
 
 exports.handleRequest = (event, context, callback) => {
   return new Promise(function(resolve, reject) {
-    if (!event.queryStringParameters.bucket) {
+    if (event.queryStringParameters == null) {
+      const bucketNotExists = new Error('bucket name could not be empty');
+      bucketNotExists.code = 2000;
+      errorLog(bucketNotExists, null, null, reject);
+      return;
+    }
+    if (typeof event.queryStringParameters.bucket === 'undefined' || !event.queryStringParameters.bucket) {
       const bucketNotExists = new Error('bucket name could not be empty');
       bucketNotExists.code = 2000;
       errorLog(bucketNotExists, null, null, reject);
       return;
     }
 
-    if(!event.queryStringParameters.filename) {
+    if(typeof event.queryStringParameters.filename === 'undefined' || !event.queryStringParameters.filename) {
       const filenameNotExists = new Error('file name could not be empty');
       filenameNotExists.code = 2000;
       errorLog(filenameNotExists, null, null, reject);
@@ -192,7 +199,6 @@ function readCSVFileByEvent(params){
       }
       else {
         console.log("head check passed");
-        resolve(1);
       }
     })
     .on('error', rowError => {

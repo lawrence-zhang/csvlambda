@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  testProject
+  HttpHandleTriggerLambda
 
 Parameters:
   AppBucketName: 
@@ -14,10 +14,10 @@ Parameters:
     Type: String
     Description: "table name of dynamoDb for save csv data"
 Resources:
-  testProject:
+  HttpHandleTriggerLambda:
     Type: AWS::Serverless::Function
     Properties:
-      Handler: src/handlers/s3-event.handler
+      Handler: src/handlers/http-handle.httpHandle
       Runtime: nodejs12.x 
       Environment:
         Variables:
@@ -38,30 +38,44 @@ Resources:
             Resource: !Ref SNSTopic
             Action: 
               - sns:Publish
+  apiGateway:
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      Name: "my-api"
+      Description: "My API"
+  apiGatewayRootMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      AuthorizationType: "NONE"
+      HttpMethod: "POST"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS_PROXY"
+        TimeoutInMillis: 29000
+        Uri: !Sub
+          - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+          - lambdaArn: !GetAtt "HttpHandleTriggerLambda.Arn"
+      ResourceId: !GetAtt "apiGateway.RootResourceId"
+      RestApiId: !Ref apiGateway
+  apiGatewayDeployment:
+    Type: "AWS::ApiGateway::Deployment"
+    DependsOn:
+      - "apiGatewayRootMethod"
+    Properties:
+      RestApiId: !Ref apiGateway
+      StageName: "test"
+  lambdaApiGatewayInvoke:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt "HttpHandleTriggerLambda.Arn"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/*/POST/"
+
   CSVBucket: 
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref AppBucketName
-      NotificationConfiguration:
-        LambdaConfigurations:
-          - Event: s3:ObjectCreated:Put
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: suffix
-                    Value: csv
-            Function: !GetAtt [testProject, Arn]
-  LambdaFromS3InvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName:
-        Fn::GetAtt:
-          - testProject
-          - Arn
-      Action: lambda:InvokeFunction
-      Principal: s3.amazonaws.com
-      SourceArn:
-        Fn::Sub: arn:aws:s3:::${AppBucketName}
   DynamoDbTable:
     Type: AWS::DynamoDB::Table
     Properties:

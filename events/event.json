@@ -39,7 +39,7 @@
 			"X-Forwarded-Port": ["443"],
 			"X-Forwarded-Proto": ["https"]
 		},
-		"queryStringParameters": {"bucket":"lawrence-csv-upload-bucket-2020", "filename": "test.csv"},
+		"queryStringParameters": null,
 		"multiValueQueryStringParameters": null,
 		"pathParameters": null,
 		"stageVariables": null,
