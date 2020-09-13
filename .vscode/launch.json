@@ -32,8 +32,18 @@
             "request": "launch",
             "name": "Unit Test For csv parsing for AWS",
             "program": "${workspaceRoot}/node_modules/jest/bin/jest.js",
-            "args": ["--verbose", "-i", "--no-cache", "--watchAll"],
+            "args": ["--verbose", "-i", "--no-cache", "--watchAll", "--testPathPattern=s3-csv-unit-test.test.js"],
             "env": {"DYNAMODB_TABLE": "test-tablename"},
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Integration Test For csv parsing for AWS",
+            "program": "${workspaceRoot}/node_modules/jest/bin/jest.js",
+            "args": ["--verbose", "-i", "--no-cache", "--watchAll", "--testPathPattern=s3-csv-integration-test.test.js"],
+            "env": {"DYNAMODB_TABLE": "position_table", "CSV_ERROR_TOPIC": "arn:aws:sns:eu-west-1:560566611276:error-message-topic", "Bucket_Name": "lawrence-csv-upload-bucket-2020"},
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen"
         }
