@@ -6,9 +6,12 @@
   "dependencies": {
     "aws-sdk": "^2.748.0",
     "bluebird": "^3.7.2",
+    "busboy": "^0.3.1",
     "fast-csv": "^4.3.2",
     "iconv": "^3.0.0",
-    "node-uuid": "^1.4.8"
+    "lambda-multipart": "^1.0.2",
+    "node-uuid": "^1.4.8",
+    "stream": "0.0.2"
   },
   "devDependencies": {
     "aws-sdk-mock": "^4.5.0",

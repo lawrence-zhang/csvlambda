@@ -5,19 +5,83 @@ const s3 = new AWS.S3();
 const csv = require('fast-csv');
 
 
-exports.handler = async (event, context, callback) => {
-  console.info(event);
-  console.info("start handle");
-  return this.readCSVFileByEvent(event, context, callback).then((data) => {
-    console.info("finished handle");
-  }).catch(err => {
-    console.error(err);
+
+exports.httpHandle = async (event, context, callback) => {
+  this.handleRequest(event, context, callback).then(data => {
+    var response = {
+      "statusCode" : 200,
+      "body": "service is running your request on backend, please check later"
+    }
+  
+    callback(null, response);
+  }).catch(ex => {
+    var responseBody = {
+      errorCode: ex.code,
+      errorMsg: ex.message
+    }
+    var response;
+    switch(ex.code) {
+      case 2000:
+      case 1003:
+      case 1002:
+      case 1004:
+        response = {
+          "statusCode": 400,
+          "body": JSON.stringify(responseBody),
+          "isBase64Encoded": false
+        };
+      break;
+      default: {
+        response = {
+          "statusCode": 503,
+          "body": JSON.stringify(responseBody),
+          "isBase64Encoded": false
+        }
+      }
+    }
+    callback(null, response);
   });
 };
 
-function errorLog(error, s3FileInfo, rawData, reject) {
+exports.handleRequest = (event, context, callback) => {
+  return new Promise(function(resolve, reject) {
+    if (!event.queryStringParameters.bucket) {
+      const bucketNotExists = new Error('bucket name could not be empty');
+      bucketNotExists.code = 2000;
+      errorLog(bucketNotExists, null, null, reject);
+      return;
+    }
+
+    if(!event.queryStringParameters.filename) {
+      const filenameNotExists = new Error('file name could not be empty');
+      filenameNotExists.code = 2000;
+      errorLog(filenameNotExists, null, null, reject);
+      return;
+    }
+
+    const params = {
+      Bucket: event.queryStringParameters.bucket,
+      Key: event.queryStringParameters.filename
+    };
+    s3.headObject(params).promise().then(data => {
+      readCSVFileByEvent(params).then(data => {
+        console.log("readCSVFileByEvent resolve");
+        resolve(data);
+      }).catch(error => {
+        error.code = 2000;
+        errorLog(error, params, null, reject);
+      });
+    }).catch(err => {
+      errorLog(err, params, null, reject);
+    });
+  });
+};
+
+
+
+function errorLog(error, params, rawData, reject) {
   console.error(error.message);
-  const errorSNS = new SNSMessage(s3FileInfo.Bucket, s3FileInfo.Key, rawData === null ? "": rawData, error.message);
+  const errorSNS = new SNSMessage(params == null ? '': params.Bucket, params == null ? '' : params.Key, rawData === null ? "": rawData, error.message);
   SNSMessage.publishMessage(errorSNS).then(data => {
     if (reject) {
       reject(error);
@@ -31,19 +95,16 @@ function errorLog(error, s3FileInfo, rawData, reject) {
   });
 }
 
-exports.readCSVFileByEvent = (event, context, callback) => {
+function readCSVFileByEvent(params){
   return new Promise(function(resolve, reject) {
     var allRowCount = 0;
     var executedRowNumber = 0;
-    const srcBucket = event.Records[0].s3.bucket.name;
-    const srcKey    = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, " "));
+    const srcBucket = params.Bucket;
+    const srcKey    = decodeURIComponent(params.Key.replace(/\+/g, " "));
     const typeMatch = srcKey.match(/\.([^.]*)$/);
     
     console.info('start handle s3 file, bucket:' + srcBucket + ', file name:' + srcKey);
-    const params = {
-      Bucket: srcBucket,
-      Key: srcKey
-    };
+   
     if (!typeMatch) {
       const typeMatchError = new Error('Could not determine the csv type.');
       typeMatchError.code = 1003;
@@ -128,6 +189,10 @@ exports.readCSVFileByEvent = (event, context, callback) => {
         const headerError = new Error('Header format is not correct');
         headerError.code = 1000;
         errorLog(headerError, params,null, reject);
+      }
+      else {
+        console.log("head check passed");
+        resolve(1);
       }
     })
     .on('error', rowError => {
