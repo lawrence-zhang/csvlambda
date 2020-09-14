@@ -11,7 +11,7 @@ exports.httpHandle = async (event, context, callback) => {
   await this.readCSVFileByEvent(event, context, callback).then(data => {
     var response = {
       "statusCode" : 200,
-      "body": "service is running your request on backend, please check later"
+      "body": "service has handle data from S3";
     }
   
     callback(null, response);
