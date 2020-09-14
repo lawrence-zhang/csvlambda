@@ -168,7 +168,7 @@ exports.readCSVFileByEvent = (event, context, callback) =>{
       if (record.address === '' || record.address === null) {
         executedRowNumber++;
         const validateError = new Error('validation error, address can not be empty string or null');
-        validateError = 1001;
+        validateError.code = 1001;
         errorLog(validateError, params, record, null);
         return;
       }
@@ -191,25 +191,6 @@ exports.readCSVFileByEvent = (event, context, callback) =>{
               resolve(allRowCount);
             }
       });
-      /*
-      Position.saveToDynamoDb(position, (err, data) => {
-          executedRowNumber++;
-          if (err) {
-            errorLog(err, params, record, null);
-            if (executedRowNumber === allRowCount) {
-              console.info('all data has been handled');
-              resolve(allRowCount);
-            }
-          }
-          else
-          {
-            console.info('data saved' + JSON.stringify(position));
-            if (executedRowNumber === allRowCount) {;
-              console.info('all data has been handled');
-              resolve(allRowCount);
-            }
-          }
-      });*/
     })
     .on('headers', headers => {
       if (headers.length !== 3 || headers[0].toLowerCase() !== 'latitude' || headers[1].toLowerCase() !== 'longitude' || headers[2] !== 'address') {
