@@ -8,7 +8,7 @@ class Position {
       this.address = address;
     }
 
-    static saveToDynamoDb(position, callback) {
+    static async saveToDynamoDb(position) {
       var params = {
         TableName: process.env.DYNAMODB_TABLE,
         Item: {
@@ -19,10 +19,12 @@ class Position {
         }
       };
 
-      
+
+      /*
       dbb.putItem(params, function(err, data) {
         callback(err, data);
-      });
+      });*/
+      return await dbb.putItem(params).promise();
     }
   };
 

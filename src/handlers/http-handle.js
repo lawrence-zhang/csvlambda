@@ -6,9 +6,9 @@ const csv = require('fast-csv');
 
 
 
-exports.httpHandle = (event, context, callback) => {
+exports.httpHandle = async (event, context, callback) => {
   
-  this.handleRequest(event, context, callback).then(data => {
+  await this.readCSVFileByEvent(event, context, callback).then(data => {
     var response = {
       "statusCode" : 200,
       "body": "service is running your request on backend, please check later"
@@ -44,47 +44,6 @@ exports.httpHandle = (event, context, callback) => {
   });
 };
 
-exports.handleRequest = (event, context, callback) => {
-  return new Promise(function(resolve, reject) {
-    if (event.queryStringParameters == null) {
-      const bucketNotExists = new Error('bucket name could not be empty');
-      bucketNotExists.code = 2000;
-      errorLog(bucketNotExists, null, null, reject);
-      return;
-    }
-    if (typeof event.queryStringParameters.bucket === 'undefined' || !event.queryStringParameters.bucket) {
-      const bucketNotExists = new Error('bucket name could not be empty');
-      bucketNotExists.code = 2000;
-      errorLog(bucketNotExists, null, null, reject);
-      return;
-    }
-
-    if(typeof event.queryStringParameters.filename === 'undefined' || !event.queryStringParameters.filename) {
-      const filenameNotExists = new Error('file name could not be empty');
-      filenameNotExists.code = 2000;
-      errorLog(filenameNotExists, null, null, reject);
-      return;
-    }
-
-    const params = {
-      Bucket: event.queryStringParameters.bucket,
-      Key: event.queryStringParameters.filename
-    };
-    s3.headObject(params).promise().then(data => {
-      readCSVFileByEvent(params).then(data => {
-        console.log("readCSVFileByEvent resolve");
-        resolve(data);
-      }).catch(error => {
-        error.code = 2000;
-        errorLog(error, params, null, reject);
-      });
-    }).catch(err => {
-      errorLog(err, params, null, reject);
-    });
-  });
-};
-
-
 
 function errorLog(error, params, rawData, reject) {
   console.error(error.message);
@@ -102,8 +61,42 @@ function errorLog(error, params, rawData, reject) {
   });
 }
 
-function readCSVFileByEvent(params){
+exports.readCSVFileByEvent = (event, context, callback) =>{
   return new Promise(function(resolve, reject) {
+
+    if (event.queryStringParameters == null) {
+      const bucketNotExists = new Error('bucket name could not be empty');
+      
+      bucketNotExists.code = 2000;
+      errorLog(bucketNotExists, null, null, reject);
+      return;
+    }
+    if (typeof event.queryStringParameters.bucket === 'undefined' || !event.queryStringParameters.bucket) {
+      
+      const bucketNotExists = new Error('bucket name could not be empty');
+      bucketNotExists.code = 2000;
+      errorLog(bucketNotExists, null, null, reject);
+      return;
+    }
+
+    if(typeof event.queryStringParameters.filename === 'undefined' || !event.queryStringParameters.filename) {
+      
+      const filenameNotExists = new Error('file name could not be empty');
+      filenameNotExists.code = 2000;
+      errorLog(filenameNotExists, null, null, reject);
+      return;
+    }
+
+    const params = {
+      Bucket: event.queryStringParameters.bucket,
+      Key: event.queryStringParameters.filename
+    };
+    s3.headObject(params).promise().then(data => {
+     
+    }).catch(err => {
+      errorLog(err, params, null, reject);
+    });
+  
     var allRowCount = 0;
     var executedRowNumber = 0;
     const srcBucket = params.Bucket;
@@ -132,12 +125,21 @@ function readCSVFileByEvent(params){
         errorLog(err, params, null, reject);
       }
     }).createReadStream();
+
+
     var options = { 'headers': true };
+
     csv
     .parseStream(readStream.on('error', accessError=>{
-      errorLog(accessError, params, null, reject);
+      if(accessError.message == 'write after end') {
+        errorLog(accessError, params, null, null);
+      }
+      else {
+        errorLog(accessError, params, null, reject);
+      }
+      
     }), options)
-    .on('data', function(record) {
+    .on('data', async function(record) {
       console.info('each row data');
       console.info(record);
       
@@ -172,6 +174,24 @@ function readCSVFileByEvent(params){
       }
 
       const position = new Position(record.latitude, record.longitude, record.address);
+      await Position.saveToDynamoDb(position).then(data => {
+        
+        executedRowNumber++;
+        console.info('data saved' + JSON.stringify(position));
+        if (executedRowNumber === allRowCount) {
+          
+          console.info('all data has been handled');
+          resolve(allRowCount);
+        }
+      }).catch(err=> {
+        
+        errorLog(err, params, record, null);
+            if (executedRowNumber === allRowCount) {
+              console.info('all data has been handled');
+              resolve(allRowCount);
+            }
+      });
+      /*
       Position.saveToDynamoDb(position, (err, data) => {
           executedRowNumber++;
           if (err) {
@@ -184,12 +204,12 @@ function readCSVFileByEvent(params){
           else
           {
             console.info('data saved' + JSON.stringify(position));
-            if (executedRowNumber === allRowCount) {
+            if (executedRowNumber === allRowCount) {;
               console.info('all data has been handled');
               resolve(allRowCount);
             }
           }
-      });
+      });*/
     })
     .on('headers', headers => {
       if (headers.length !== 3 || headers[0].toLowerCase() !== 'latitude' || headers[1].toLowerCase() !== 'longitude' || headers[2] !== 'address') {
